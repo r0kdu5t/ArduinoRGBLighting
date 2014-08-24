@@ -7,12 +7,15 @@
 #include <Ethernet.h>
 #include <WebServer.h>
 #include <EEPROM.h>
+#include <Wire.h> // Required for I2C communication
+
+#define I2C_ADDRESS 0x50 // Address of the Microchip 24AA125E48 I2C ROM
 
 //Pins
 static const int RED_PIN = 5;
 static const int GREEN_PIN = 6;
 static const int BLUE_PIN = 3;
-static const int BUTTON_PIN = 12;
+static const int BUTTON_PIN = 7; // was set to 12; 
 
 //Colour Component Enum
 static const int R = 0;
@@ -39,8 +42,9 @@ static int OFF[] = {0, 0, 0};
 static int FULL_WHITE[] = {255, 255, 50};
 
 //Webserver
-static uint8_t MAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-static uint8_t IP[] = {172, 18, 16, 200};
+//static uint8_t MAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+static uint8_t mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+//static uint8_t IP[] = {172, 18, 16, 200}; // Utilising DHCP
 WebServer webserver("", 80);
 
 //Variables
@@ -346,6 +350,8 @@ void buttonHandler() {
 
 void setup() {
   Serial.begin(115200);
+  Wire.begin();         // Join i2c bus (I2C address is optional for the master)
+  // pin configuration  
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
   pinMode(BUTTON_PIN, INPUT);
@@ -353,7 +359,29 @@ void setup() {
   pinMode(RED_PIN, OUTPUT);
   pinMode(GREEN_PIN, OUTPUT);
   pinMode(BLUE_PIN, OUTPUT);
-  Ethernet.begin(MAC, IP);
+  // ethernet mac configuration
+  Serial.print("Getting MAC: ");
+  
+  mac[0] = readRegister(0xFA);
+  mac[1] = readRegister(0xFB);
+  mac[2] = readRegister(0xFC);
+  mac[3] = readRegister(0xFD);
+  mac[4] = readRegister(0xFE);
+  mac[5] = readRegister(0xFF);
+  
+  char tmpBuf[17];
+  sprintf(tmpBuf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  Serial.println(tmpBuf);  
+  
+  // start the Ethernet connection:
+  Serial.print( "Eth: " );
+  if (Ethernet.begin(mac) == 0) // Ethernet DHCP 0 = fail
+  {
+    Serial.println("Failed.");
+    //RED();    
+    while(true); // stay in endless loop
+  }
+  Serial.println( Ethernet.localIP() );
   webserver.setDefaultCommand(&webUI);
   webserver.addCommand("index", &webUI);
   webserver.addCommand("service", &webBackend);
@@ -374,4 +402,35 @@ void loop() {
     }
     buttonLast = buttonState;
   }
+  int dhcp_status = Ethernet.maintain();
+  /*
+    returns:
+   0: nothing happened
+   1: renew failed
+   2: renew success
+   3: rebind fail
+   4: rebind success
+   */
+  if (dhcp_status) {
+    long now = millis();
+    Serial.println("DHCP Lease");
+  }
+
 }
+
+byte readRegister(byte r)
+{
+  unsigned char v;
+  Wire.beginTransmission(I2C_ADDRESS);
+  Wire.write(r);  // Register to read
+  Wire.endTransmission();
+
+  Wire.requestFrom(I2C_ADDRESS, 1); // Read a byte
+  while(!Wire.available())
+  {
+    // Wait
+  }
+  v = Wire.read();
+  return v;
+} 
+
