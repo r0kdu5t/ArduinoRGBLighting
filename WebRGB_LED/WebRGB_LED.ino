@@ -1,7 +1,9 @@
+/*
 // RGB LED Lighting System
-// Dan Nixon 2013
-// dan-nixon.com
-
+// original code by Dan Nixon 2013 - dan-nixon.com
+// changes and modification by Andrew Sands - andrew@theatrix.org.nz
+ */
+ 
 //Includes
 #include <SPI.h>
 #include <Ethernet.h>
@@ -44,7 +46,7 @@ static int FULL_WHITE[] = {255, 255, 50};
 //Webserver
 //static uint8_t MAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
 static uint8_t mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-//static uint8_t IP[] = {172, 18, 16, 200}; // Utilising DHCP
+static uint8_t ip[] = {192, 168, 31, 180}; // Setting fixed IP
 WebServer webserver("", 80);
 
 //Variables
@@ -142,13 +144,13 @@ P(frontEndHTML) =
   "updateHandler();"
   "}"
   "function setLights(red, green, blue, transition, ttime) {"
-  "$.post('http://172.18.16.200/service', {r: red, g: green, b: blue, trans: transition, time: ttime})"
+  "$.post('http://192.168.31.180/service', {r: red, g: green, b: blue, trans: transition, time: ttime})"
   ".done(function(data) {"
   "handleXMLresponse(data);"
   "});"
   "}"
   "function getLightState() {"
-  "$.get('http://172.18.16.200/service')"
+  "$.get('http://192.168.31.180/service')"
   ".done(function(data) {"
   "handleXMLresponse(data);"
   "});"
@@ -372,23 +374,25 @@ void setup() {
   char tmpBuf[17];
   sprintf(tmpBuf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   Serial.println(tmpBuf);  
-  
+/*  
   // start the Ethernet connection:
   Serial.print( "Eth: " );
-  if (Ethernet.begin(mac) == 0) // Ethernet DHCP 0 = fail
+  if (Ethernet.begin(mac) == 0) // Ethernet DHCP 0 = fail!
   {
     Serial.println("Failed.");
     //RED();    
     while(true); // stay in endless loop
   }
   Serial.println( Ethernet.localIP() );
+*/
+  Ethernet.begin(mac, ip);
   webserver.setDefaultCommand(&webUI);
   webserver.addCommand("index", &webUI);
   webserver.addCommand("service", &webBackend);
   webserver.begin();
   buttonLast = digitalRead(BUTTON_PIN);
-  lightMode = LIGHT_ON;
-  lightChange(FULL_WHITE, lastUsedTransition, lastUsedTime);
+  lightMode = LIGHT_WEB;
+  lightChange(OFF, lastUsedTransition, lastUsedTime);
 }
 
 void loop() {
@@ -402,7 +406,8 @@ void loop() {
     }
     buttonLast = buttonState;
   }
-  int dhcp_status = Ethernet.maintain();
+  
+//  int dhcp_status = Ethernet.maintain();
   /*
     returns:
    0: nothing happened
@@ -411,10 +416,10 @@ void loop() {
    3: rebind fail
    4: rebind success
    */
-  if (dhcp_status) {
-    long now = millis();
-    Serial.println("DHCP Lease");
-  }
+//  if (dhcp_status) {
+//    long now = millis();
+//    Serial.println("DHCP Lease");
+//  }
 
 }
 
